@@ -697,7 +697,13 @@ function App() {
           <button className="avatar-button" onClick={() => setShowMenu(!showMenu)}><span>{role === 'customer' ? 'AK' : role === 'provider' ? 'MM' : 'AD'}</span><ChevronDown size={15} /></button>
           {showMenu && <div className="profile-menu"><strong>{accountName || (role === 'customer' ? 'Anna K.' : role === 'provider' ? 'Moses M.' : 'Admin')}</strong><span>{session ? session.user.email || roleLabel(role) : roleLabel(role)}</span>{!session && <><button onClick={() => { setShowAuth(true); setShowMenu(false) }}>Ingia / Jisajili</button><button onClick={() => setRole('customer')}>Customer demo</button><button onClick={() => setRole('provider')}>Provider demo</button><button onClick={() => setRole('admin')}>Admin demo</button></>}{session && <button onClick={() => { localStorage.removeItem('mtaani-session'); setSession(null); setRole('customer') }}>Ondoka</button>}</div>}
         </div>
-        <button className="mobile-menu" aria-label="Open menu"><Menu size={21} /></button>
+        <button
+  className="mobile-menu"
+  aria-label="Open profile menu"
+  onClick={() => setShowMenu((value) => !value)}
+>
+  <Menu size={21} />
+</button>
       </header>
 
       <main id="top">
