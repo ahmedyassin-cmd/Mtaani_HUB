@@ -135,4 +135,64 @@ h1, h2, h3, p { margin: 0; }.hero h1 { font: 800 clamp(48px, 5vw, 70px)/.98 'Man
 @media (max-width: 700px) { .admin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }.admin-provider-row { align-items: start; flex-direction: column; }.workspace-row { grid-template-columns: 36px 1fr; }.workspace-row > button, .workspace-row > .status { grid-column: 2; justify-self: start; }.provider-quote-row { grid-template-columns: 1fr auto; }.provider-quote-row > .status { grid-column: 1 / -1; justify-self: start; }.provider-booking-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-items: start; flex-wrap: wrap; }.provider-application { padding: 15px; }.provider-card { min-width: 0; }.provider-title { flex-direction: column; }.provider-footer { flex-direction: column; align-items: stretch; }.provider-footer button { width: 100%; justify-content: center; } }
 @media (max-width: 900px) { .quote-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .main-nav { margin-left: 7%; gap: 17px; }.hero { padding-left: 5%; }.dashboard-grid, .category-section { padding-left: 5%; padding-right: 5%; }.trust-strip, footer { padding-left: 5%; padding-right: 5%; } }
-@media (max-width: 700px) { .topbar { height: 66px; padding: 0 5%; }.main-nav, .top-actions { display: none; }.mobile-menu { display: grid; place-items: center; }.hero { display: block; padding-left: 0; }.hero-copy { padding: 50px 6% 38px; }.hero h1 { font-size: 49px; }.hero-art { min-height: 260px; }.sun-disc { width: 260px; height: 260px; top: 25px; left: 19%; }.art-card-main { bottom: 38px; left: 11%; }.art-card-mini { top: 28px; right: 12%; }.art-label { display: none; }.search-box { height: auto; min-height: 56px; flex-wrap: wrap; padding: 12px; gap: 8px; }.search-box input { width: calc(100% - 38px); }.search-location { width: 100%; margin-left: 0; padding: 8px 0 0 28px; border-top: 1px solid var(--line); }.search-submit { width: 100%; margin: 4px 0 0; height: 42px; }.category-section { padding-top: 36px; }.section-heading { align-items: start; gap: 15px; }.section-heading h2 { font-size: 21px; }.text-button { white-space: nowrap; }.dashboard-grid { display: block; padding-top: 32px; }.providers-panel { margin-bottom: 30px; }.provider-grid { grid-template-columns: 1fr; }.activity-panel { padding: 22px 17px; }.trust-strip { grid-template-columns: 1fr; gap: 20px; padding-top: 24px; padding-bottom: 24px; }footer { display: grid; gap: 8px; padding-top: 20px; padding-bottom: 24px; }.toast { top: 12px; left: 12px; right: 12px; justify-content: center; }.request-modal { padding: 29px 22px 23px; } }
+@media (max-width: 700px) {
+  .topbar {
+    height: 66px;
+    padding: 0 5%;
+  }
+
+  .main-nav {
+    display: none;
+  }
+
+  .top-actions {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+  }
+
+  .database-status {
+    display: none;
+  }
+
+  .avatar-button {
+    display: flex;
+  }
+
+  .mobile-menu {
+    display: grid;
+    place-items: center;
+    margin-left: 8px;
+  }
+
+  .profile-menu {
+    top: 43px;
+    right: 0;
+    width: 190px;
+  }
+
+  .hero { display: block; padding-left: 0; }
+  .hero-copy { padding: 50px 6% 38px; }
+  .hero h1 { font-size: 49px; }
+  .hero-art { min-height: 260px; }
+  .sun-disc { width: 260px; height: 260px; top: 25px; left: 19%; }
+  .art-card-main { bottom: 38px; left: 11%; }
+  .art-card-mini { top: 28px; right: 12%; }
+  .art-label { display: none; }
+  .search-box { height: auto; min-height: 56px; flex-wrap: wrap; padding: 12px; gap: 8px; }
+  .search-box input { width: calc(100% - 38px); }
+  .search-location { width: 100%; margin-left: 0; padding: 8px 0 0 28px; border-top: 1px solid var(--line); }
+  .search-submit { width: 100%; margin: 4px 0 0; height: 42px; }
+  .category-section { padding-top: 36px; }
+  .section-heading { align-items: start; gap: 15px; }
+  .section-heading h2 { font-size: 21px; }
+  .text-button { white-space: nowrap; }
+  .dashboard-grid { display: block; padding-top: 32px; }
+  .providers-panel { margin-bottom: 30px; }
+  .provider-grid { grid-template-columns: 1fr; }
+  .activity-panel { padding: 22px 17px; }
+  .trust-strip { grid-template-columns: 1fr; gap: 20px; padding-top: 24px; padding-bottom: 24px; }
+  footer { display: grid; gap: 8px; padding-top: 20px; padding-bottom: 24px; }
+  .toast { top: 12px; left: 12px; right: 12px; justify-content: center; }
+  .request-modal { padding: 29px 22px 23px; }
+}
