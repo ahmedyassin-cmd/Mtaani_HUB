@@ -816,14 +816,15 @@ function statusColor(status: string) {
 function DashboardSignIn({ onSignIn }: { onSignIn: () => void }) {
   return <div className="dashboard-empty"><ShieldCheck size={22} /><strong>Ingia kuona dashboard yako</strong><span>Dashboard za provider na admin zinahitaji akaunti yenye role husika.</span><button className="outline-button" onClick={onSignIn}>Ingia / Jisajili</button></div>
 }
-
-function CustomerQuotes({ quotations, loading, onAccept, onConfirmCompletion, confirmingBooking }: {
+function CustomerQuotes({ session, quotations, loading, onAccept, onConfirmCompletion, confirmingBooking }: {
+  session: AuthSession
   quotations: CustomerQuotationRecord[]
   loading: boolean
   onAccept: (requestId: string, quotationId: string) => Promise<void>
   onConfirmCompletion: (bookingId: string) => Promise<void>
   confirmingBooking: string | null
 }) {
+{
   const [accepting, setAccepting] = useState<string | null>(null)
   const [error, setError] = useState('')
 
