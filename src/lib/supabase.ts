@@ -947,6 +947,7 @@ export type ReviewVoteCounts = {
   my_vote: number | null
 }
 
+
 async function attachReviewDetails(
   records: ReviewRecord[],
   headers: Record<string, string>,
@@ -970,21 +971,18 @@ async function attachReviewDetails(
   if (!profilesResponse.ok) throw new Error(await profilesResponse.text())
   if (!providersResponse.ok) throw new Error(await providersResponse.text())
 
-  const profiles = await profilesResponse.json()
-  const providers = await providersResponse.json()
+  const profiles: { id: string; full_name: string | null }[] =
+    await profilesResponse.json()
 
-  const customerNames = new Map(
-    profiles.map((p: { id: string; full_name: string | null }) => [
-      p.id,
-      p.full_name || 'Mteja',
-    ]),
+  const providers: { id: string; business_name: string | null }[] =
+    await providersResponse.json()
+
+  const customerNames = new Map<string, string>(
+    profiles.map((p) => [p.id, p.full_name || 'Mteja']),
   )
 
-  const providerNames = new Map(
-    providers.map((p: { id: string; business_name: string | null }) => [
-      p.id,
-      p.business_name || 'Provider',
-    ]),
+  const providerNames = new Map<string, string>(
+    providers.map((p) => [p.id, p.business_name || 'Provider']),
   )
 
   return records.map((review) => ({
@@ -993,7 +991,6 @@ async function attachReviewDetails(
     provider_name: providerNames.get(review.provider_id) || 'Provider',
   }))
 }
-
 
 // 1. Kupata reviews za dashboard kulingana na role
 export async function getReviews(
