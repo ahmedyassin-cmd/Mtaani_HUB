@@ -553,18 +553,18 @@ function App() {
     }
   }
 
-  const confirmCompletion = async (quotation: CustomerQuotationRecord) => {
-  setError('')
-  try {
-    await onConfirmCompletion(quotation.booking_id!)
-    setRating(5)
-    setReviewComment('')
-    setReviewError('')
-    setReviewTarget(quotation)
-  } catch (confirmError) {
-    setError(confirmError instanceof Error ? confirmError.message : 'Imeshindikana kuthibitisha kukamilika kwa kazi.')
+    const confirmCompletion = async (bookingId: string) => {
+    if (!session) throw new Error('Ingia tena ili kuendelea.')
+    setConfirmingBooking(bookingId)
+    try {
+      await confirmBookingCompletion(session, bookingId)
+      setDashboardRefresh((value) => value + 1)
+      setNotice('Umehakikisha kazi imekamilika. Asante kwa kutumia MtaaniHub.')
+      window.setTimeout(() => setNotice(''), 3500)
+    } finally {
+      setConfirmingBooking(null)
+    }
   }
-}
 
   const readNotification = async (notification: UserNotificationRecord) => {
     if (!session || notification.read_at) return
