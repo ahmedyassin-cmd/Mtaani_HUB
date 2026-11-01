@@ -824,7 +824,6 @@ function CustomerQuotes({ session, quotations, loading, onAccept, onConfirmCompl
   onConfirmCompletion: (bookingId: string) => Promise<void>
   confirmingBooking: string | null
 }) {
-{
   const [accepting, setAccepting] = useState<string | null>(null)
   const [error, setError] = useState('')
 
