@@ -22,8 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import { checkSupabaseConnection, confirmBookingCompletion, deleteAllUserNotifications, deleteUserNotification, describeDashboardError, getCategoryIdByName, getCurrentProfile, getServiceCategories, getStoredSession, getUserNotifications, getVerifiedProviderCount, getVerifiedProviders, isSupabaseConfigured, markUserNotificationRead, updateBookingProgress } from './lib/supabase'
-import { acceptQuotation, approveProvider, applyAsProvider, createQuotation, createServiceRequest, getAdminMetrics, getCustomerQuotations, getCustomerRequests, getOpenServiceRequests, getPendingProviders, getProviderQuotations, signIn, signUp, type AuthSession, type CustomerQuotationRecord, type PendingProviderRecord, type ProviderQuotationRecord, type ServiceRequestRecord, type UserNotificationRecord } from './lib/supabase'
-
+import { acceptQuotation, approveProvider, applyAsProvider, createQuotation, createReview, createServiceRequest, getAdminMetrics, getCustomerQuotations, getCustomerRequests, getOpenServiceRequests, getPendingProviders, getProviderQuotations, getReviews, signIn, signUp, type AuthSession, type CustomerQuotationRecord, type PendingProviderRecord, type ProviderQuotationRecord, type ReviewRecord, type ServiceRequestRecord, type UserNotificationRecord } from './lib/supabase'
 type Provider = {
   id: number | string
   name: string
