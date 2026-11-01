@@ -553,18 +553,18 @@ function App() {
     }
   }
 
-  const confirmCompletion = async (bookingId: string) => {
-    if (!session) throw new Error('Ingia tena ili kuendelea.')
-    setConfirmingBooking(bookingId)
-    try {
-      await confirmBookingCompletion(session, bookingId)
-      setDashboardRefresh((value) => value + 1)
-      setNotice('Umehakikisha kazi imekamilika. Asante kwa kutumia MtaaniHub.')
-      window.setTimeout(() => setNotice(''), 3500)
-    } finally {
-      setConfirmingBooking(null)
-    }
+  const confirmCompletion = async (quotation: CustomerQuotationRecord) => {
+  setError('')
+  try {
+    await onConfirmCompletion(quotation.booking_id!)
+    setRating(5)
+    setReviewComment('')
+    setReviewError('')
+    setReviewTarget(quotation)
+  } catch (confirmError) {
+    setError(confirmError instanceof Error ? confirmError.message : 'Imeshindikana kuthibitisha kukamilika kwa kazi.')
   }
+}
 
   const readNotification = async (notification: UserNotificationRecord) => {
     if (!session || notification.read_at) return
@@ -773,7 +773,7 @@ function App() {
 
         <section className="trust-strip" id="about"><div><ShieldCheck size={23} /><strong>Providers verified</strong><span>Tunathibitisha utambulisho na uzoefu</span></div><div><MessageCircle size={23} /><strong>Mawasiliano rahisi</strong><span>Ongea moja kwa moja na mtaalamu</span></div><div><CalendarDays size={23} /><strong>Ratiba yako</strong><span>Chagua muda unaokufaa</span></div></section>
       </main>
-      <footer><span>© 2024 MtaaniHub</span><span>Huduma za karibu, maisha rahisi.</span><span>Dar es Salaam, Tanzania</span></footer>
+      <footer><span>© 2026 MtaaniHub</span><span>Huduma za karibu, maisha rahisi.</span><span>Dar es Salaam, Tanzania</span></footer>
       {showRequest && <RequestModal providers={displayProviders} initialProviderId={requestProviderId} onClose={() => setShowRequest(false)} onSent={(service, location, description, category, region, city, providerId) => { setShowRequest(false); addRequest(service, location, description, category, region, city, providerId) }} />}
       {selectedProviderProfile && <ProviderProfileModal provider={selectedProviderProfile} onClose={() => setSelectedProviderProfile(null)} onRequest={() => { setRequestProviderId(isProviderUuid(selectedProviderProfile.id) ? String(selectedProviderProfile.id) : String(selectedProviderProfile.id)); setSelectedProviderProfile(null); setShowRequest(true) }} />}
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} onAuthenticated={(nextSession, registered) => { setSession(nextSession); setShowAuth(false); setNotice(registered ? 'Usajili umekamilika. Karibu MtaaniHub.' : 'Umeingia kwenye MtaaniHub.'); if (registered && !isSupabaseConfigured) createLocalNotification('Mteja mpya amejisajili', `${nextSession.user.email || 'Akaunti mpya'} amefungua akaunti ya MtaaniHub.`); }} />}
@@ -826,11 +826,34 @@ function CustomerQuotes({ session, quotations, loading, onAccept, onConfirmCompl
 }) {
   const [accepting, setAccepting] = useState<string | null>(null)
   const [error, setError] = useState('')
+    const [reviews, setReviews] = useState<ReviewRecord[]>([])
+  const [reviewTarget, setReviewTarget] = useState<CustomerQuotationRecord | null>(null)
+  const [rating, setRating] = useState(5)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewSaving, setReviewSaving] = useState(false)
+  const [reviewError, setReviewError] = useState('')
 
-  const confirmCompletion = async (bookingId: string) => {
+  const loadCustomerReviews = async () => {
+    try {
+      const data = await getReviews(session, 'customer')
+      setReviews(data)
+    } catch (reviewLoadError) {
+      console.error('Imeshindikana kupakia reviews:', reviewLoadError)
+    }
+  }
+
+  useEffect(() => {
+    void loadCustomerReviews()
+  }, [session])
+
+  const confirmCompletion = async (quotation: CustomerQuotationRecord) => {
     setError('')
     try {
-      await onConfirmCompletion(bookingId)
+      await onConfirmCompletion(quotation.booking_id!)
+setRating(5)
+setReviewComment('')
+setReviewError('')
+setReviewTarget(quotation)
     } catch (confirmError) {
       setError(confirmError instanceof Error ? confirmError.message : 'Imeshindikana kuthibitisha kukamilika kwa kazi.')
     }
@@ -848,9 +871,128 @@ function CustomerQuotes({ session, quotations, loading, onAccept, onConfirmCompl
       setAccepting(null)
     }
   }
+  const submitReview = async () => {
+    if (!reviewTarget?.booking_id) return
 
-  if (loading || quotations.length === 0) return null
-  return <section className="customer-quotes"><div className="subsection-heading"><div><span className="section-kicker">OFa ZA WATAALAMU</span><h3>Quotations ulizopokea</h3></div><span>{quotations.length} quotes</span></div>{error && <div className="dashboard-error">{error}</div>}<div className="quote-grid">{quotations.map((quotation) => {
+    setReviewSaving(true)
+    setReviewError('')
+
+    try {
+      await createReview(
+        session,
+        reviewTarget.booking_id,
+        reviewTarget.provider_id,
+        rating,
+        reviewComment,
+      )
+
+      await loadCustomerReviews()
+      setReviewTarget(null)
+      setReviewComment('')
+      setRating(5)
+    } catch (submitError) {
+      setReviewError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Imeshindikana kutuma review.',
+      )
+    } finally {
+      setReviewSaving(false)
+    }
+  }
+
+  const reviewedBookingIds = new Set(
+    reviews.map((review) => review.booking_id),
+  )
+
+  const pendingReviews = quotations.filter(
+    (quotation) =>
+      quotation.booking_status === 'completed' &&
+      quotation.customer_confirmed_at !== null &&
+      quotation.booking_id !== null &&
+      !reviewedBookingIds.has(quotation.booking_id),
+  )
+  if (loading) return null
+  return <section className="customer-quotes"><div className="subsection-heading"><div><span className="section-kicker">OFa ZA WATAALAMU</span><h3>Quotations ulizopokea</h3></div><span>{quotations.length} quotes</span></div>{error && <div className="dashboard-error">{error}</div>} {pendingReviews.length > 0 && (
+  <div className="pending-reviews">
+    <h3>Pending Reviews ⭐</h3>
+    <p>Una kazi {pendingReviews.length} ambazo bado hujazipa rating.</p>
+
+    {pendingReviews.map((quotation) => (
+      <article className="customer-quote-card" key={quotation.booking_id}>
+        <strong>{quotation.service_requests?.title || 'Huduma iliyokamilika'}</strong>
+        <p>Hujatoa rating kwa huduma hii bado.</p>
+        <button
+          className="primary-button"
+          onClick={() => {
+            setRating(5)
+            setReviewComment('')
+            setReviewError('')
+            setReviewTarget(quotation)
+          }}
+        >
+          Toa Rating sasa ⭐
+        </button>
+      </article>
+    ))}
+  </div>
+)}
+
+{reviewTarget && (
+  <div className="review-modal-overlay">
+    <div className="review-modal">
+      <h3>Unaridhika na huduma?</h3>
+      <p>Chagua nyota kulingana na huduma uliyopokea.</p>
+
+      <div className="rating-stars">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => setRating(star)}
+            style={{
+              color: star <= rating ? '#f5a623' : '#999',
+              fontSize: '30px',
+              background: 'none',
+              border: 'none',
+            }}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+
+      <p>{rating} kati ya nyota 5</p>
+
+      <textarea
+        value={reviewComment}
+        onChange={(event) => setReviewComment(event.target.value)}
+        placeholder="Andika maoni yako kuhusu huduma..."
+        rows={4}
+      />
+
+      {reviewError && (
+        <div className="dashboard-error">{reviewError}</div>
+      )}
+
+      <button
+        className="primary-button"
+        disabled={reviewSaving}
+        onClick={() => void submitReview()}
+      >
+        {reviewSaving ? 'Inatuma...' : 'Tuma Review'}
+      </button>
+
+      <button
+        className="outline-button"
+        disabled={reviewSaving}
+        onClick={() => setReviewTarget(null)}
+      >
+        Rate later
+      </button>
+    </div>
+  </div>
+)} <div className="quote-grid">{quotations.map((quotation) => {
     const provider = quotation.provider_profiles
     const providerName = provider?.profiles?.full_name || provider?.business_name || 'Provider'
     const requestStatus = quotation.service_requests?.status || 'open'
@@ -863,7 +1005,7 @@ function CustomerQuotes({ session, quotations, loading, onAccept, onConfirmCompl
           ? 'Umejibu quotation: umeikubali'
           : requestStatusLabel(requestStatus)
     const progressStep = bookingStatus === 'completed' ? 3 : bookingStatus === 'in_progress' ? 2 : bookingStatus ? 1 : 0
-    return <article className="customer-quote-card" key={quotation.id}><div><strong>{quotation.service_requests?.title || 'Service request'}</strong><span>{providerName}</span></div><strong className="quote-amount">TSh {Number(quotation.amount).toLocaleString()}</strong>{quotation.message && <p>{quotation.message}</p>}{quotation.estimated_days && <small>{quotation.estimated_days} siku</small>}<small className="quote-status">{statusText}</small>{bookingStatus && <div className="booking-progress" aria-label={`Hatua ya kazi ${progressStep} kati ya 3`}><span className={progressStep >= 1 ? 'active' : ''}>Imekubaliwa</span><i className={progressStep >= 2 ? 'active' : ''} /><span className={progressStep >= 2 ? 'active' : ''}>Inaendelea</span><i className={progressStep >= 3 ? 'active' : ''} /><span className={progressStep >= 3 ? 'active' : ''}>Imekamilika</span></div>}{bookingStatus === 'completed' && !quotation.customer_confirmed_at && quotation.booking_id && <button className="primary-button confirm-completion-button" disabled={confirmingBooking !== null} onClick={() => void confirmCompletion(quotation.booking_id!)}>{confirmingBooking === quotation.booking_id ? 'Inathibitisha...' : 'Nimeridhika — thibitisha kazi imekamilika'} <Check size={15} /></button>}{bookingStatus === 'completed' && quotation.customer_confirmed_at && <small className="customer-confirmed">Umethibitisha kuridhika na kazi.</small>}<button className="outline-button" disabled={accepting !== null || requestStatus !== 'open'} onClick={() => accept(quotation)}>{accepting === quotation.id ? 'Inathibitisha...' : requestStatus === 'open' ? 'Kubali quotation' : requestStatus === 'booked' ? 'Imebookiwa' : `Request ${statusText}`}</button></article>
+    return <article className="customer-quote-card" key={quotation.id}><div><strong>{quotation.service_requests?.title || 'Service request'}</strong><span>{providerName}</span></div><strong className="quote-amount">TSh {Number(quotation.amount).toLocaleString()}</strong>{quotation.message && <p>{quotation.message}</p>}{quotation.estimated_days && <small>{quotation.estimated_days} siku</small>}<small className="quote-status">{statusText}</small>{bookingStatus && <div className="booking-progress" aria-label={`Hatua ya kazi ${progressStep} kati ya 3`}><span className={progressStep >= 1 ? 'active' : ''}>Imekubaliwa</span><i className={progressStep >= 2 ? 'active' : ''} /><span className={progressStep >= 2 ? 'active' : ''}>Inaendelea</span><i className={progressStep >= 3 ? 'active' : ''} /><span className={progressStep >= 3 ? 'active' : ''}>Imekamilika</span></div>}{bookingStatus === 'completed' && !quotation.customer_confirmed_at && quotation.booking_id && <button className="primary-button confirm-completion-button" disabled={confirmingBooking !== null} onClick={() => void confirmCompletion(quotation)}>{confirmingBooking === quotation.booking_id ? 'Inathibitisha...' : 'Nimeridhika — thibitisha kazi imekamilika'} <Check size={15} /></button>}{bookingStatus === 'completed' && quotation.customer_confirmed_at && <small className="customer-confirmed">Umethibitisha kuridhika na kazi.</small>}<button className="outline-button" disabled={accepting !== null || requestStatus !== 'open'} onClick={() => accept(quotation)}>{accepting === quotation.id ? 'Inathibitisha...' : requestStatus === 'open' ? 'Kubali quotation' : requestStatus === 'booked' ? 'Imebookiwa' : `Request ${statusText}`}</button></article>
   })}</div></section>
 }
 
