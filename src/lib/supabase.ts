@@ -919,3 +919,444 @@ export async function createServiceRequest(request: RemoteRequest, session: Auth
 
   return { ok: true as const, directed }
 }
+// ==========================================
+// MTAANIHUB REVIEWS & RATINGS
+// ==========================================
+
+export type ReviewRecord = {
+  id: string
+  booking_id: string
+  customer_id: string
+  provider_id: string
+  rating: number
+  comment: string | null
+  provider_reply: string | null
+  provider_replied_at: string | null
+  is_published: boolean
+  created_at: string
+  customer_name?: string
+  provider_name?: string
+  helpful_count?: number
+  not_helpful_count?: number
+  my_vote?: number | null
+}
+
+export type ReviewVoteCounts = {
+  helpful_count: number
+  not_helpful_count: number
+  my_vote: number | null
+}
+
+async function attachReviewDetails(
+  records: ReviewRecord[],
+  headers: Record<string, string>,
+): Promise<ReviewRecord[]> {
+  if (records.length === 0) return []
+
+  const profileIds = [...new Set(records.map((r) => r.customer_id))]
+  const providerIds = [...new Set(records.map((r) => r.provider_id))]
+
+  const [profilesResponse, providersResponse] = await Promise.all([
+    fetch(
+      `${supabaseUrl}/rest/v1/profiles?select=id,full_name&id=in.(${profileIds.join(',')})`,
+      { headers },
+    ),
+    fetch(
+      `${supabaseUrl}/rest/v1/provider_profiles?select=id,business_name&id=in.(${providerIds.join(',')})`,
+      { headers },
+    ),
+  ])
+
+  if (!profilesResponse.ok) throw new Error(await profilesResponse.text())
+  if (!providersResponse.ok) throw new Error(await providersResponse.text())
+
+  const profiles = await profilesResponse.json()
+  const providers = await providersResponse.json()
+
+  const customerNames = new Map(
+    profiles.map((p: { id: string; full_name: string | null }) => [
+      p.id,
+      p.full_name || 'Mteja',
+    ]),
+  )
+
+  const providerNames = new Map(
+    providers.map((p: { id: string; business_name: string | null }) => [
+      p.id,
+      p.business_name || 'Provider',
+    ]),
+  )
+
+  return records.map((review) => ({
+    ...review,
+    customer_name: customerNames.get(review.customer_id) || 'Mteja',
+    provider_name: providerNames.get(review.provider_id) || 'Provider',
+  }))
+}
+
+
+// 1. Kupata reviews za dashboard kulingana na role
+export async function getReviews(
+  session: AuthSession,
+  role: 'customer' | 'provider' | 'admin',
+) {
+  let filter = ''
+
+  if (role === 'customer') {
+    filter = `&customer_id=eq.${session.user.id}`
+  } else if (role === 'provider') {
+    filter = `&provider_id=eq.${session.user.id}`
+  }
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/reviews?select=id,booking_id,customer_id,provider_id,rating,comment,provider_reply,provider_replied_at,is_published,created_at${filter}&order=created_at.desc`,
+    { headers: userHeaders(session) },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+
+  const records = await response.json() as ReviewRecord[]
+  const detailedRecords = await attachReviewDetails(records, userHeaders(session))
+
+  return Promise.all(detailedRecords.map(async (review) => {
+    const counts = await getReviewVoteCounts(session, review.id)
+
+    return {
+      ...review,
+      helpful_count: counts.helpful_count,
+      not_helpful_count: counts.not_helpful_count,
+      my_vote: counts.my_vote,
+    }
+  }))
+}
+
+
+// 2. Kupata reviews za provider ambazo zimechapishwa (public)
+export async function getPublicProviderReviews(providerId: string) {
+  const headers = {
+    apikey: supabaseAnonKey!,
+    Authorization: `Bearer ${supabaseAnonKey}`,
+    'Content-Type': 'application/json',
+  }
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/reviews?select=id,booking_id,customer_id,provider_id,rating,comment,provider_reply,provider_replied_at,is_published,created_at&provider_id=eq.${providerId}&is_published=eq.true&order=created_at.desc`,
+    { headers },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+
+  const records = await response.json() as ReviewRecord[]
+  const detailedRecords = await attachReviewDetails(records, headers)
+
+  return Promise.all(detailedRecords.map(async (review) => {
+    const counts = await getPublicReviewVoteCounts(review.id)
+
+    return {
+      ...review,
+      helpful_count: counts.helpful_count,
+      not_helpful_count: counts.not_helpful_count,
+      my_vote: null,
+    }
+  }))
+}
+
+
+// 3. Customer kuandika review mpya
+export async function createReview(
+  session: AuthSession,
+  bookingId: string,
+  providerId: string,
+  rating: number,
+  comment: string,
+) {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new Error('Rating lazima iwe kati ya nyota 1 hadi 5.')
+  }
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/reviews`, {
+    method: 'POST',
+    headers: {
+      ...userHeaders(session),
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      booking_id: bookingId,
+      customer_id: session.user.id,
+      provider_id: providerId,
+      rating,
+      comment: comment.trim() || null,
+    }),
+  })
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 4. Customer kuhariri review yake
+export async function updateReview(
+  session: AuthSession,
+  reviewId: string,
+  rating: number,
+  comment: string,
+) {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new Error('Rating lazima iwe kati ya nyota 1 hadi 5.')
+  }
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/reviews?id=eq.${reviewId}&customer_id=eq.${session.user.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        rating,
+        comment: comment.trim() || null,
+      }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 5. Customer kufuta review yake
+export async function deleteReview(
+  session: AuthSession,
+  reviewId: string,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/reviews?id=eq.${reviewId}&customer_id=eq.${session.user.id}`,
+    {
+      method: 'DELETE',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 6. Provider kujibu au kuhariri jibu lake
+export async function replyToReview(
+  session: AuthSession,
+  reviewId: string,
+  reply: string,
+) {
+  if (!reply.trim() || reply.length > 2000) {
+    throw new Error('Jibu lazima liwe na herufi 1 hadi 2000.')
+  }
+
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/reply_to_review`, {
+    method: 'POST',
+    headers: {
+      ...userHeaders(session),
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      p_review_id: reviewId,
+      p_reply: reply.trim(),
+    }),
+  })
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 7. Provider kufuta jibu lake
+export async function deleteOwnReviewReply(
+  session: AuthSession,
+  reviewId: string,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/delete_own_review_reply`,
+    {
+      method: 'POST',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ p_review_id: reviewId }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 8. Admin kuficha au kurudisha review
+export async function moderateReview(
+  session: AuthSession,
+  reviewId: string,
+  isPublished: boolean,
+  moderationNote?: string,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/moderate_review`,
+    {
+      method: 'POST',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        p_review_id: reviewId,
+        p_is_published: isPublished,
+        p_moderation_note: moderationNote || null,
+      }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 9. Admin kufuta review kabisa
+export async function adminDeleteReview(
+  session: AuthSession,
+  reviewId: string,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/admin_delete_review`,
+    {
+      method: 'POST',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ p_review_id: reviewId }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 10. Admin kufuta jibu la provider
+export async function adminDeleteReviewReply(
+  session: AuthSession,
+  reviewId: string,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/admin_delete_review_reply`,
+    {
+      method: 'POST',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ p_review_id: reviewId }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 11. Kupiga kura Helpful au Not Helpful
+export async function castReviewVote(
+  session: AuthSession,
+  reviewId: string,
+  vote: 1 | -1,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/cast_review_vote`,
+    {
+      method: 'POST',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        p_review_id: reviewId,
+        p_vote: vote,
+      }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 12. Kuondoa kura yako
+export async function removeReviewVote(
+  session: AuthSession,
+  reviewId: string,
+) {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/remove_review_vote`,
+    {
+      method: 'POST',
+      headers: {
+        ...userHeaders(session),
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ p_review_id: reviewId }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+}
+
+
+// 13. Kupata idadi ya kura na kura yako mwenyewe
+export async function getReviewVoteCounts(
+  session: AuthSession,
+  reviewId: string,
+): Promise<ReviewVoteCounts> {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/get_review_vote_counts`,
+    {
+      method: 'POST',
+      headers: userHeaders(session),
+      body: JSON.stringify({ p_review_id: reviewId }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+
+  const result = await response.json()
+  const record = Array.isArray(result) ? result[0] : result
+
+  return {
+    helpful_count: Number(record?.helpful_count || 0),
+    not_helpful_count: Number(record?.not_helpful_count || 0),
+    my_vote: record?.my_vote == null ? null : Number(record.my_vote),
+  }
+}
+
+
+// 14. Public kupata idadi ya kura
+async function getPublicReviewVoteCounts(
+  reviewId: string,
+): Promise<ReviewVoteCounts> {
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/rpc/get_review_vote_counts`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey!,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_review_id: reviewId }),
+    },
+  )
+
+  if (!response.ok) throw new Error(await response.text())
+
+  const result = await response.json()
+  const record = Array.isArray(result) ? result[0] : result
+
+  return {
+    helpful_count: Number(record?.helpful_count || 0),
+    not_helpful_count: Number(record?.not_helpful_count || 0),
+    my_vote: null,
+  }
+}
